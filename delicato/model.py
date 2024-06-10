@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from torch import linalg as LA
 
 class EuclideanDistance(torch.nn.Module):
@@ -9,6 +10,22 @@ class EuclideanDistance(torch.nn.Module):
     diff = a - b
     return LA.norm(diff, dim=1)
   
+
+class Blobnet(torch.nn.Module):
+  def __init__(self):
+    super(Blobnet, self).__init__()
+    self.base_model = torchvision.models.resnet18(pretrained=True)
+    self.base_model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+    n_ftrs = self.base_model.fc.in_features
+    self.base_model.fc = torch.nn.Linear(n_ftrs, 128)
+    self.dist = EuclideanDistance()
+
+  def forward(self, a, b):
+    r1 = self.base_model(a)
+    r2 = self.base_model(b)
+    d = self.dist(r1, r2)
+    return d
+
 
 class Signet(torch.nn.Module):
   def __init__(self):
