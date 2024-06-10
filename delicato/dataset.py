@@ -8,9 +8,10 @@ from torchvision.transforms import v2, functional as F
 init_transforms = v2.Compose([
     v2.Grayscale(),
     v2.Resize((155, 220)),
-    v2.ToTensor(),
-    #F.invert,
-    #v2.Normalize((0.0907,), (0.1941,))
+    v2.PILToTensor(),
+    v2.ToDtype(torch.float32, scale=True),
+    F.invert,
+    v2.Normalize((0.0907,), (0.1941,))
 ])
 
 class BlobDataset(Dataset):

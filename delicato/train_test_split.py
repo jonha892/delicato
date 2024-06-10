@@ -41,7 +41,7 @@ def generate_train_examples(df: pd.DataFrame):
   result = []
   for id in ids:
     rows = df[df['id'] == id]
-    print(f'ID: {id} Genuine: {len(rows[rows["is_genuine"]])} Forged: {len(rows[~rows["is_genuine"]])}')
+    #print(f'ID: {id} Genuine: {len(rows[rows["is_genuine"]])} Forged: {len(rows[~rows["is_genuine"]])}')
 
     # get all combinations of rows
     for i in range(len(rows)):
