@@ -40,7 +40,6 @@ def fit(
         with torch.set_grad_enabled(phase == 'train'):
           distance = model(inputs_a, inputs_b)
           loss = criterion(distance, labels)
-          print(loss)
 
           if phase == 'train':
             loss.backward()
