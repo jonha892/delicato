@@ -12,7 +12,7 @@ def process_ids(ids):
       items.extend([{ 'path': file, 'id': i.name, 'is_genuine': False } for file in forged_files])
     return pd.DataFrame(items)
 
-def init_split(path: Path, train_size: float, val_size: None | float = None, test_size: None | float = None, seed: int = 42):
+def init_split(path: Path, train_size: float, val_size = None, test_size = None, seed: int = 42):
   # get folders in the path
   folders = list(path.glob('*/'))
   if len(folders) == 0:
@@ -20,18 +20,19 @@ def init_split(path: Path, train_size: float, val_size: None | float = None, tes
 
   train_ids, val_ids = train_test_split(folders, train_size=train_size, random_state=seed)
   
+  test_df = None
   if val_size and test_size:
     val_size = val_size / (val_size + test_size)
     val_ids, test_ids = train_test_split(val_ids, train_size=val_size, random_state=seed)
+    print(f'Test: {len(test_ids)} ratio: {len(test_ids) / len(folders)}')
+    test_df = process_ids(test_ids) if test_ids else None
 
   print(f'Train: {len(train_ids)} ratio: {len(train_ids) / len(folders)}')
   print(f'Val: {len(val_ids)} ratio: {len(val_ids) / len(folders)}')
-  if test_size:
-    print(f'Test: {len(test_ids)} ratio: {len(test_ids) / len(folders)}')
+    
 
   train_df = process_ids(train_ids)
   val_df = process_ids(val_ids)
-  test_df = process_ids(test_ids) if test_ids else None
 
   return train_df, val_df, test_df
 

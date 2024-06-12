@@ -1,16 +1,11 @@
-from pathlib import Path
 from time import time
 
+from metrics import find_best_accuracy, accuracy
 import torch
-from torchvision.transforms import v2, functional as F
-from torch.utils.data import DataLoader
-from torch.optim import Adam
-from tqdm.notebook import tqdm
-import torch.utils.benchmark as benchmark
+from torch.utils.data import DataLoader, ConcatDataset
+from tqdm import tqdm
 
-#from train_test_split import init_split, generate_train_examples
-#from dataset import BlobDataset
-#from model import Signet
+from dataset import get_random_subset
 
 def contrastiveLoss(distance, label, margin=1, alpha=1.0, beta=1.0):
  # left = alpha * (1 - label) * torch.pow(distance, 2)
@@ -51,91 +46,106 @@ class ContrastiveLoss(torch.nn.Module):
         loss = torch.mean(loss, dtype=torch.float)
         return loss
 
+def train(model, loader, optimizer, criterion, device):
+  model.train()
+  
+  running_loss = torch.tensor(0.0).to(device)
+
+  for i, (inputs_a, inputs_b, labels) in enumerate(tqdm(loader)):
+    inputs_a = inputs_a.to(device)
+    inputs_b = inputs_b.to(device)
+    labels = labels.to(device)
+
+    optimizer.zero_grad()
+
+    distance = model(inputs_a, inputs_b)
+    loss = criterion(distance, labels)
+
+    loss.backward()
+    optimizer.step()
+    running_loss += loss.item() * inputs_a.size(0)
+  
+  return running_loss
+
+@torch.no_grad()
+def eval(model, loader, criterion, device, test_threshold=None):
+  model.eval()   
+  running_loss = torch.tensor(0.0).to(device)
+
+  distances = []
+  all_labels = []
+  for i, (inputs_a, inputs_b, labels) in enumerate(tqdm(loader)):
+    inputs_a = inputs_a.to(device)
+    inputs_b = inputs_b.to(device)
+    labels = labels.to(device)
+
+
+    distance = model(inputs_a, inputs_b)
+    loss = criterion(distance, labels)
+
+    running_loss += loss.item() * inputs_a.size(0)
+    
+    distances.append(distance)
+    all_labels.append(labels)
+
+  distances = torch.cat(distances)
+  labels = torch.cat(all_labels)
+  best_acc, t = find_best_accuracy(distances, labels)
+
+  if test_threshold is None:
+    return running_loss, best_acc, -1, t
+
+  test_acc = accuracy(distances, test_threshold, labels)
+  return running_loss, best_acc, test_acc, t
+  
+
+
 def fit(
     model,
-    loaders,
+    train_datasets, # list of tuples of ds and weight
+    validation_datasets, # list of tuples of ds and name
     optimizer,
+    scheduler,
     criterion,
     epochs,
+    save_dir='models/',
     device=torch.device('cpu')
 ):
   model.to(device)
   criterion.to(device)
 
+  val_loaders = [ (DataLoader(ds, batch_size=32, shuffle=False, num_workers=4), name) for ds, name, _ in validation_datasets ]
+  val_super_ds = ConcatDataset([ get_random_subset(ds, w) for ds, _, w in validation_datasets ])
+  val_super_loader = DataLoader(val_super_ds, batch_size=32, shuffle=False, num_workers=4)
+
+  best_com_acc = 0
   for e in range(epochs):
     for phase in ['train', 'val']:
       if phase == 'train':
-        model.train()
+        subsets = [ get_random_subset(d, w) for d, w in train_datasets ]
+        super_set = ConcatDataset(subsets)
+
+        print(f'Length of super_set: {len(super_set)}')
+        loader = DataLoader(super_set, batch_size=32, shuffle=True, num_workers=4)
+
+        running_loss = train(model, loader, optimizer, criterion, device)
+        print(f'epoch {str(e).ljust(3)} {phase.ljust(7)} average loss: {running_loss / len(loader.dataset):.3f}')
+
+        scheduler.step()
       else:
-        model.eval()
+        com_loss, best_acc, _, com_threshold = eval(model, val_super_loader, criterion, device)
+        print(f'epoch {str(e).ljust(3)} {phase.rjust(7)}-combined average loss: {com_loss / len(val_super_loader.dataset):.3f} accuracy: {best_acc:.3f} threshold: {com_threshold:.3f}')
 
-      running_loss = torch.tensor(0.0).to(device)
+        if best_acc > best_com_acc:
+          best_com_acc = best_acc
+          to_save = {
+            'model': model.state_dict(),
+            'acc': best_com_acc,
+            'threshold': com_threshold 
+          }
+          torch.save(to_save, save_dir + f'checkpoint_{time()}.pt')
+          print(f'Saving model with combined accuracy: {best_acc} and threshold: {com_threshold}')
 
-      loader = loaders[phase]
-      for inputs_a, inputs_b, labels in tqdm(loader):
-        t0 = time()
-        inputs_a = inputs_a.to(device)
-        inputs_b = inputs_b.to(device)
-        labels = labels.to(device)
-        print(f'to device time: {time() - t0}')
-
-        t1 = time()
-        optimizer.zero_grad()
-        print(f'zero grad time: {time() - t1}')
-
-        with torch.set_grad_enabled(phase == 'train'):
-          t0 = time()
-          distance = model(inputs_a, inputs_b)
-          t1 = time()
-          print(f'forward time: {t1 - t0}')
-          loss = criterion(distance, labels)
-          print(f'loss time: {time() - t1}')
-
-          t0 = time()
-          if phase == 'train':
-            loss.backward()
-            optimizer.step()
-          t1 = time()
-          print(f'backward time: {t1 - t0}')
-
-          #t0 = time()
-          #running_loss += loss.item() * inputs_a.size(0)
-          #t1 = time()
-          #print(f'backward time: {t1 - t0}')
-      print(f'epoch {str(e).ljust(3)} {phase.ljust(7)} average loss: {running_loss / len(loader.dataset)}')
-
-
-
-if __name__ == '__main__':
-  data_path = Path() / '..' / 'data' / 'blob' 
-  init_train_df, val_df, test_df = init_split(data_path, train_size=0.7, val_size=0.15, test_size=0.15, seed=77)
-
-  train_df = generate_train_examples(init_train_df)
-  val_df = generate_train_examples(val_df)
-
-
-  train_transforms = v2.Compose([
-    v2.Grayscale(),
-    v2.Resize((155, 220)),
-    v2.RandomRotation(10),
-    v2.PILToTensor(),
-    v2.ToDtype(torch.float32, scale=True),
-    F.invert,
-    v2.Normalize((0.0907,), (0.1941,))
-  ])
-  
-  train_ds = BlobDataset(train_df, transforms=train_transforms)
-  val_ds = BlobDataset(val_df)
-
-  train_dl = DataLoader(train_ds, batch_size=16, shuffle=True, num_workers=4)
-  val_dl = DataLoader(val_ds, batch_size=32, shuffle=False, num_workers=4)
-  loaders = { 'train': train_dl, 'val': val_dl }
-
-  model = Signet()
-
-  optimizer = Adam(model.parameters(), lr=0.001)
-  #critertion = contrastiveLoss
-  critertion = ContrastiveLoss(alpha=1, beta=1, margin=1).to(torch.device('cuda'))
-  epochs = 15
-
-  fit(model, loaders, optimizer, critertion, epochs, device=torch.device('cuda'))
+        for loader, name in val_loaders:
+          running_loss, best_acc, test_acc, best_threshold = eval(model, loader, criterion, device, test_threshold=com_threshold)
+          print(f'epoch {str(e).ljust(3)} {phase.ljust(7)}-{name} average loss: {running_loss / len(loader.dataset):.3f} best_accuracy: {best_acc:.3f} test_acc(combined threshold): {test_acc:.3f} threshold: {best_threshold:.3f}')

@@ -1,6 +1,7 @@
 import torch
 import torchvision
 from torch import linalg as LA
+import torch.nn as nn
 
 class EuclideanDistance(torch.nn.Module):
   def __init__(self):
@@ -14,10 +15,10 @@ class EuclideanDistance(torch.nn.Module):
 class Blobnet(torch.nn.Module):
   def __init__(self):
     super(Blobnet, self).__init__()
-    self.base_model = torchvision.models.resnet18(pretrained=True)
-    self.base_model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+    self.base_model = torchvision.models.resnet34(pretrained=True)
+    self.base_model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
     n_ftrs = self.base_model.fc.in_features
-    self.base_model.fc = torch.nn.Linear(n_ftrs, 128)
+    self.base_model.fc = nn.Linear(n_ftrs, 256)
     self.dist = EuclideanDistance()
 
   def forward(self, a, b):
@@ -30,61 +31,47 @@ class Blobnet(torch.nn.Module):
 class Signet(torch.nn.Module):
   def __init__(self):
     super(Signet, self).__init__()
-
-    conv1 = torch.nn.Conv2d(1, 96, kernel_size=11, stride=1)
-    norm1 = torch.nn.LocalResponseNorm(size=5, alpha=0.0001, beta=0.75, k=2)
-    pool1 = torch.nn.MaxPool2d(kernel_size=3, stride=2)
     
-    conv2 = torch.nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2)
-    norm2 = torch.nn.LocalResponseNorm(size=5, alpha=0.0001, beta=0.75, k=2)
-    pool2 = torch.nn.MaxPool2d(kernel_size=3, stride=2)
-    dropout2 = torch.nn.Dropout(p=0.3)
 
-    conv3 = torch.nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1)
-    
-    conv4 = torch.nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1)
-    #pool4 = torch.nn.MaxPool2d(kernel_size=5, stride=2)
-    #pool4 = torch.nn.MaxPool2d(kernel_size=(17, 25), stride=2)
-    pool4 = torch.nn.AdaptiveAvgPool2d((1, 1)) # ?
-    dropout4 = torch.nn.Dropout(p=0.3)
-
-    self.features = torch.nn.Sequential(
-      conv1,
-      torch.nn.ReLU(),
-      norm1,
-      pool1,
-      conv2,
-      torch.nn.ReLU(),
-      norm2,
-      pool2,
-      dropout2,
-      conv3,
-      torch.nn.ReLU(),
-      conv4,
-      torch.nn.ReLU(),
-      pool4,
-      dropout4
+    self.features = nn.Sequential(
+      nn.Conv2d(1, 96, kernel_size=11, stride=1),
+      nn.ReLU(),
+      nn.LocalResponseNorm(size=5, alpha=0.0001, beta=0.75, k=2),
+      nn.MaxPool2d(kernel_size=3, stride=2),
+      
+      nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
+      nn.ReLU(),
+      nn.LocalResponseNorm(size=5, alpha=0.0001, beta=0.75, k=2),
+      nn.MaxPool2d(kernel_size=3, stride=2),
+      nn.Dropout(p=0.3),
+      
+      nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1) ,
+      nn.ReLU(),
+      nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+      nn.ReLU(),
+      
+      nn.MaxPool2d(kernel_size=3, stride=2),
+      nn.Dropout(p=0.3),
+      nn.Flatten()
     )
 
-    self.fc1 = torch.nn.Linear(256, 1024)
-    # self.fc1 = torch.nn.Linear(217600, 1024)
-    self.fc2 = torch.nn.Linear(1024, 128)
+    self.fully_connected = nn.Sequential(
+      torch.nn.Linear(17*25*256, 1024),
+      torch.nn.ReLU(),
+      torch.nn.Dropout(p=0.5),
+
+      torch.nn.Linear(1024, 128),
+      #torch.nn.ReLU(),
+    )
+
     self.dist = EuclideanDistance()
 
   def forward(self, a, b):
     r1 = self.features(a)
-    #print(r1.shape)
-    r1 = r1.squeeze()
-    #print(r1.shape)
-    r1 = self.fc1(r1)
-    r1 = self.fc2(r1)
+    r1 = self.fully_connected(r1)
 
     r2 = self.features(b)
-    r2 = r2.squeeze()
-    r2 = self.fc1(r2)
-    r2 = self.fc2(r2)
-
-    #print(r1.shape, r2.shape)
+    r2 = self.fully_connected(r2)
 
     d = self.dist(r1, r2)
     return d

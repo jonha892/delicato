@@ -1,7 +1,8 @@
 
+import random
 from PIL import Image
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from torchvision.transforms import v2, functional as F
 
 
@@ -13,6 +14,13 @@ init_transforms = v2.Compose([
     F.invert,
     v2.Normalize((0.0907,), (0.1941,))
 ])
+
+def get_random_subset(dataset, fraction):
+    dataset_size = len(dataset)
+    subset_size = int(fraction * dataset_size)
+    indices = random.sample(range(dataset_size), subset_size)
+    subset = Subset(dataset, indices)
+    return subset
 
 class BlobDataset(Dataset):
     def __init__(self, df, transforms=init_transforms):
