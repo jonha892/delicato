@@ -126,3 +126,31 @@ def generate_triplet_train_examples(folders, seed: int = 42):
       })
     df = pd.concat([df, pd.DataFrame(data)], ignore_index=True)
   return df
+
+
+def generate_classify_train_examples(folders):
+  result = []
+  for folder in folders:
+    genuine_files = list(folder.glob('genuine/*'))
+    forged_files = list(folder.glob('forged/*'))
+
+    all_files = genuine_files + forged_files
+    combinations = list(itertools.combinations(all_files, 2))
+
+    for (file1, file2) in combinations:
+      # check if both parent folders are genuine
+      is_genuine = file1.parent.name == 'genuine' and file2.parent.name == 'genuine'
+
+      # get string path
+      file1 = str(file1)
+      file2 = str(file2)
+
+
+      result.append({
+        'path_a': file1,
+        'path_b': file2,
+        'is_genuine': is_genuine,
+        'id': folder.name
+      })
+
+  return pd.DataFrame(result)
