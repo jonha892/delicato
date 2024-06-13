@@ -40,7 +40,7 @@ class BlobDataset(Dataset):
         image_b = Image.open(row['path_b'])
         image_b = self.transforms(image_b)
 
-        label = 1 if row['is_genuine'] else 0
+        label = 0 if row['is_genuine'] else 1
         label = torch.tensor(label, dtype=torch.float32)
 
         return image_a, image_b, label

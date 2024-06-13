@@ -8,12 +8,16 @@ def find_best_accuracy(distances, y, step=0.01):
 
     res_threshold = 0
     for threshold_d in torch.arange(min_threshold_d, max_threshold_d+step, step):
+        
+        """
         true_positive = (distances <= threshold_d) & (same_id)
         true_positive_rate = true_positive.sum().float() / same_id.sum().float()
         true_negative = (distances > threshold_d) & (~same_id)
         true_negative_rate = true_negative.sum().float() / (~same_id).sum().float()
 
         acc = 0.5 * (true_negative_rate + true_positive_rate)
+        """
+        acc = accuracy(distances, threshold_d, y)
 
         if acc > max_acc:
             max_acc = acc

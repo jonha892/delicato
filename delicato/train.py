@@ -124,8 +124,6 @@ def fit(
       if phase == 'train':
         subsets = [ get_random_subset(d, w) for d, w in train_datasets ]
         super_set = ConcatDataset(subsets)
-
-        print(f'Length of super_set: {len(super_set)}')
         loader = DataLoader(super_set, batch_size=32, shuffle=True, num_workers=4)
 
         running_loss = train(model, loader, optimizer, criterion, device)
@@ -144,7 +142,7 @@ def fit(
             'threshold': com_threshold 
           }
           torch.save(to_save, save_dir + f'checkpoint_{time()}.pt')
-          print(f'Saving model with combined accuracy: {best_acc} and threshold: {com_threshold}')
+          print(f'Saving model with combined accuracy: {best_acc:.3f} and threshold: {com_threshold:.3f}')
 
         for loader, name in val_loaders:
           running_loss, best_acc, test_acc, best_threshold = eval(model, loader, criterion, device, test_threshold=com_threshold)

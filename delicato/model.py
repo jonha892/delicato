@@ -1,5 +1,6 @@
 import torch
 import torchvision
+from torchvision.models import ResNet34_Weights
 from torch import linalg as LA
 import torch.nn as nn
 
@@ -15,7 +16,7 @@ class EuclideanDistance(torch.nn.Module):
 class Blobnet(torch.nn.Module):
   def __init__(self):
     super(Blobnet, self).__init__()
-    self.base_model = torchvision.models.resnet34(pretrained=True)
+    self.base_model = torchvision.models.resnet34(weights=ResNet34_Weights.DEFAULT)
     self.base_model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
     n_ftrs = self.base_model.fc.in_features
     self.base_model.fc = nn.Linear(n_ftrs, 256)

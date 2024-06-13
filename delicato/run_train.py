@@ -29,7 +29,7 @@ if __name__ == '__main__':
     v2.PILToTensor(),
     v2.ToDtype(torch.float32, scale=True),
     F.invert,
-    v2.Normalize((0.0907,), (0.1941,))
+    #v2.Normalize((0.0907,), (0.1941,))
   ])
   
   train_ds_cedar = BlobDataset(train_df_cedar, transforms=train_transforms)
@@ -45,11 +45,11 @@ if __name__ == '__main__':
   #val_dl = DataLoader(val_ds, batch_size=32, shuffle=False, num_workers=4)
   train_datasets = [
     (train_ds_cedar, 0.1),
-    #(train_ds_icdar, 1)
+    (train_ds_icdar, 1)
   ]
   val_datasets = [
-    (val_ds_cedar, 'cedar', 1),
-    #(val_ds_icdar, 'icdar', 1)
+    (val_ds_cedar, 'cedar', 0.1),
+    (val_ds_icdar, 'icdar', 1)
   ]
 
   #model = Signet()
