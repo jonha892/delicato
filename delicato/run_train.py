@@ -5,13 +5,15 @@ from torchvision.transforms import v2, functional as F
 from torch.optim import Adam, RMSprop
 from torch.optim.lr_scheduler import StepLR
 
-from train_test_split import init_split, generate_train_examples
+from train_test_split import generate_triplet_train_examples, init_id_split, init_split, generate_train_examples
 from train import ContrastiveLoss, fit
-from dataset import BlobDataset
+from train_triplet import train_embedding
+from dataset import BlobDataset, TripletDataset
 from model import Signet, Blobnet
 
-if __name__ == '__main__':
-  data_path_cedar = Path() / 'data' / 'blob' 
+
+def main_1():
+  data_path_cedar = Path() / 'data' / 'blob'
   train_df_cedar, val_df_cedar, _ = init_split(data_path_cedar, train_size=0.8, val_size=0.2, seed=77)
   train_df_cedar = generate_train_examples(train_df_cedar)
   val_df_cedar = generate_train_examples(val_df_cedar)
@@ -29,7 +31,7 @@ if __name__ == '__main__':
     v2.PILToTensor(),
     v2.ToDtype(torch.float32, scale=True),
     F.invert,
-    #v2.Normalize((0.0907,), (0.1941,))
+    v2.Normalize((0.0907,), (0.1941,))
   ])
   
   train_ds_cedar = BlobDataset(train_df_cedar, transforms=train_transforms)
@@ -65,3 +67,47 @@ if __name__ == '__main__':
   epochs = 20
 
   fit(model, train_datasets, val_datasets, optimizer, scheduler, critertion, epochs, device=torch.device('cuda'))
+
+
+if __name__ == '__main__':
+  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+  data_path_cedar = Path() / 'data' / 'blob'
+  train_folders, va_folders, _ = init_id_split(data_path_cedar, train_size=0.8, seed=77)
+
+  train_df_cedar = generate_triplet_train_examples(train_folders)
+  print(train_df_cedar.head())
+
+  train_transforms = v2.Compose([
+    v2.Grayscale(),
+    v2.Resize((155, 220)),
+    v2.RandomRotation(10),
+    v2.PILToTensor(),
+    v2.ToDtype(torch.float32, scale=True),
+    F.invert,
+    v2.Normalize((0.0907,), (0.1941,))
+  ])
+
+  train_ds = TripletDataset(train_df_cedar, transforms=train_transforms)
+
+  train_datasets = [
+    (train_ds, 0.3)
+  ]
+
+  model = Blobnet()
+
+  optimizer = Adam(model.parameters(), lr=0.001)
+  scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
+
+  critertion = ContrastiveLoss(alpha=1, beta=1, margin=1).to(device)
+  epochs = 20
+
+  train_embedding(
+    model=model,
+    train_datasets=train_datasets,
+    critertion=critertion,
+    optimizer=optimizer,
+    scheduler=scheduler,
+    epochs=epochs,
+    device=device
+  )

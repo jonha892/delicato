@@ -40,7 +40,31 @@ class BlobDataset(Dataset):
         image_b = Image.open(row['path_b'])
         image_b = self.transforms(image_b)
 
-        label = 0 if row['is_genuine'] else 1
+        label = 0 if row['is_genuine'] else 1 # distance
         label = torch.tensor(label, dtype=torch.float32)
 
         return image_a, image_b, label
+    
+    
+class TripletDataset(Dataset):
+    def __init__(self, df, transforms=init_transforms):
+        self.df = df
+        self.transforms = transforms
+        
+
+    def __len__(self):
+        return self.df.shape[0]
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        
+        anchor = Image.open(row['anchor_path'])
+        anchor = self.transforms(anchor)
+
+        positive = Image.open(row['positive_path'])
+        positive = self.transforms(positive)
+
+        negative = Image.open(row['negative_path'])
+        negative = self.transforms(negative)
+
+        return anchor, positive, negative
