@@ -7,6 +7,14 @@ pip3 install -r requirements.txt
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
+## Referent implementierungen
+
+- https://www.kaggle.com/code/saurabstha5/signature-spatial-attention#Efficient-Net
+- https://github.com/VinhLoiIT/signet-pytorch/tree/master
+
+### Paper
+
+- https://arxiv.org/pdf/1707.02131v2
 
 ## Data stuff
 
@@ -15,6 +23,7 @@ Für den Fall das wir mehrere Datensätze zum trainieren benutzen überführen w
 ### Datasets
 
 #### 'nfi'
+
 https://www.kaggle.com/datasets/divyanshrai/handwritten-signatures/data
 
 Leider ist deren ids nicht ganz eindeutig. Z.B. ist die Signatur '003' im dataset 1 & 3 unterschiedlich.
